@@ -1,6 +1,9 @@
-// #include <SoftwareSerial.h>
-// SoftwareSerial mySerial(10, 11); // RX TX
+// cubetech coffeehack
+// include serial library and define serial pins on Arduino (4 and 5 works perfectly, 1 and 2 doesnt)
+#include <SoftwareSerial.h>
+SoftwareSerial Serial1(4, 5); // RX TX
 
+// define some basics
 #ifndef bitRead
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 #define bitSet(value, bit) ((value) |= (1UL << (bit)))
@@ -8,99 +11,25 @@
 #define bitWrite(value, bit, bitvalue) (bitvalue ? bitSet(value, bit) : bitClear(value, bit))
 #endif
 
+// define some variables
 byte z0, z1, z2, z3;
 byte x0, x1, x2, x3, x4;
 byte d0, d1, d2, d3;
 byte intra = 1, inter = 7;
+int espresso, doubleespresso, coffee, doublecoffee, unknown, alacarte, powder;
 String hexval;
+String outputStr;
 
-// TODO: melkkoffie, twee koffie, twee espressi
-// TODO: make this an array and iterate all functions over it
-int t_koffie, t_ristretto, t_cappuccino, t_espresso, t_latte_macchiato, t_macchiato;
-int o_koffie, o_ristretto, o_cappuccino, o_espresso, o_latte_macchiato, o_macchiato;
-
+// open serial communication
 void setup() {
+  // serial console to base
   Serial.begin(9600);
+  // serial connection to coffeemaker
   Serial1.begin(9600);
-  Serial.println("Starting Q42 coffeehacker");
+  Serial.println("Starting cubetech juracoffee hacker");
 }
 
-int getCounter(int offset)
-{
-  if(offset > 0x800) return -1;
-
-  hexval = String(offset, HEX);
-  while(hexval.length() < 3) hexval = "0" + hexval;
-
-  toCoffeemaker('R'); delay(inter);
-  toCoffeemaker('E'); delay(inter);
-  toCoffeemaker(':'); delay(inter);
-  toCoffeemaker('0'); delay(inter);
-  toCoffeemaker(hexval[0]); delay(inter);
-  toCoffeemaker(hexval[1]); delay(inter);
-  toCoffeemaker(hexval[2]); delay(inter);
-  toCoffeemaker(0x0D); delay(inter);
-  toCoffeemaker(0x0A); delay(100);
-
-  String r = "";
-
-  while(Serial1.available()) {
-    delay (intra); d0 = Serial1.read();
-    delay (intra); d1 = Serial1.read();
-    delay (intra); d2 = Serial1.read();
-    delay (intra); d3 = Serial1.read();
-    delay (inter);
-    r += char(fromCoffeemaker(d0,d1,d2,d3));
-  }
-
-  if (r.length() == 9) {
-    String hex = r.substring(3,7);
-    int number = (int)strtol(hex.c_str(), NULL, 16);
-    return number;
-  } else {
-    return -1;
-  }
-}
-
-void loop() {
-  o_koffie = t_koffie;
-  o_ristretto = t_ristretto;
-  o_cappuccino = t_cappuccino;
-  o_espresso = t_espresso;
-  o_latte_macchiato = t_latte_macchiato;
-  o_macchiato = t_macchiato;
-
-  Serial.println("------ reading values");
-  t_koffie = getCounter(0x282);
-  t_ristretto = getCounter(0x281);
-  t_cappuccino = getCounter(0x284);
-  t_espresso = getCounter(0x280);
-  t_latte_macchiato = getCounter(0x285);
-  t_macchiato = getCounter(0x286);
-
-  Serial.print("koffie:.........."); Serial.println(t_koffie);
-  Serial.print("cappuccino:......"); Serial.println(t_cappuccino);
-  Serial.print("espresso:........"); Serial.println(t_espresso);
-  Serial.print("ristretto:......."); Serial.println(t_ristretto);
-  Serial.print("latte macchiato:."); Serial.println(t_latte_macchiato);
-  Serial.print("macchiato:......."); Serial.println(t_macchiato);
-
-  if(t_koffie == o_koffie + 1) trigger("koffie");
-  if(t_ristretto == o_ristretto + 1) trigger("ristretto");
-  if(t_cappuccino == o_cappuccino + 1) trigger("cappuccino");
-  if(t_espresso == o_espresso + 1) trigger("espresso");
-  if(t_latte_macchiato == o_latte_macchiato + 1) trigger("latte_macchiato");
-  if(t_macchiato == o_macchiato + 1) trigger("macchiato");
-
-  delay(5 * 1000);
-}
-
-void trigger(String ctype)
-{
-  Serial.println(" -- triggering webhook for a " + ctype);
-  Spark.publish("coffeecups", ctype, 60, PRIVATE);
-}
-
+// read from coffeemaker and decrypt
 byte fromCoffeemaker(byte x0, byte x1, byte x2, byte x3) {
   bitWrite(x4, 0, bitRead(x0,2));
   bitWrite(x4, 1, bitRead(x0,5));
@@ -113,6 +42,7 @@ byte fromCoffeemaker(byte x0, byte x1, byte x2, byte x3) {
   return x4;
 }
 
+// encrypt and send to coffeemaker
 byte toCoffeemaker(byte z) {
   z0 = 255;
   z1 = 255;
@@ -134,3 +64,113 @@ byte toCoffeemaker(byte z) {
   delay(intra); Serial1.write(z3);
   delay(inter);
 }
+
+// send CR LF to coffeemaker and make a delay
+void sendCrLf() {
+  toCoffeemaker(0x0D); delay(inter);
+  toCoffeemaker(0x0A); delay(100);
+}
+
+// execute any command to coffeemaker, for example AN:02 for machine off
+void getStr(String outputStr)
+{
+  // send each char to coffeemaker
+  for (byte a = 0; a < outputStr.length(); a++){
+    toCoffeemaker(outputStr[a]); delay(inter);
+  }
+  // send CR LF
+  sendCrLf();
+
+  String r = "";
+  
+  // read bits
+  while(Serial1.available()) {
+    delay (intra); d0 = Serial1.read();
+    delay (intra); d1 = Serial1.read();
+    delay (intra); d2 = Serial1.read();
+    delay (intra); d3 = Serial1.read();
+    delay (inter);
+    r += char(fromCoffeemaker(d0,d1,d2,d3));
+  }
+  
+  // print result to console
+  Serial.print(outputStr);
+  Serial.print(":.....");
+  Serial.println(r);
+}
+
+// get that integer out of memory
+int getVal(String outputStr)
+{
+  // send each char to coffeemaker
+  for (byte a = 0; a < outputStr.length(); a++){
+    toCoffeemaker(outputStr[a]); delay(inter);
+  }
+  // send CR LF
+  sendCrLf();
+
+  String r = "";
+  
+  // read
+  while(Serial1.available()) {
+    delay (intra); d0 = Serial1.read();
+    delay (intra); d1 = Serial1.read();
+    delay (intra); d2 = Serial1.read();
+    delay (intra); d3 = Serial1.read();
+    delay (inter);
+    r += char(fromCoffeemaker(d0,d1,d2,d3));
+  }
+  
+  // read real values and convert to integer
+  String hex = r.substring(3,7);
+  int number = (int)strtol(hex.c_str(), NULL, 16);
+  return number;
+}
+
+// checks all stored values from RE:00 to RE:7F
+void checkValues() {
+  // go through each
+  for ( int i = 0; i <= 0x7F; i++ ) {
+    String outputString = "RE:";
+    if(i <= 0xF){
+      outputString += "0";
+    }
+    outputString += String(i, HEX);
+    outputString.toUpperCase();
+    // get value and return to console
+    Serial.print(outputString); Serial.print(": "); Serial.println(getVal(outputString));
+  }
+}
+
+// loop
+void loop() {
+  // reading coffee values
+  Serial.println("------ reading values");
+  espresso = getVal("RE:00");
+  doubleespresso = getVal("RE:01");
+  coffee = getVal("RE:02");
+  doublecoffee = getVal("RE:03");
+  unknown = getVal("RE:04");
+  alacarte = getVal("RE:05");
+  powder = getVal("RE:06");
+
+  // print values to console
+  Serial.print("ct espresso: "); Serial.println(espresso + doubleespresso);
+  Serial.print("ct coffee: "); Serial.println(coffee + doublecoffee + unknown + alacarte + powder);
+  Serial.print("ct total: "); Serial.println(espresso + doubleespresso + coffee + doublecoffee + unknown + alacarte + powder);
+
+  // get all stored values
+  // checkValues();
+
+  // delay 15 seconds
+  delay(15 * 1000);
+
+}
+
+// TODO: trigger some magic
+void trigger(String ctype)
+{
+  Serial.println(" -- triggering webhook for a " + ctype);
+  //do something
+}
+

@@ -1,9 +1,11 @@
-# coffeehack
+# cubetech coffeehack
 
-`coffeehack.ino` is the arduino/squirrel-code that runs the local interface to the machine's maintenance port. Run it on a Spark Photon. `webhook-coffee.json` is what you'll need to `particle webhook create` in order for the Photon's event trigger to cause a web requests to the API.
+`coffeehack.ino` is the arduino code that runs the local interface to the machine's maintenance port. Run it on an Arduino on Port 4 and 5.
 
-`test-app` shows how to get data out of the API (over DDP)
+## Disclaimer
 
-`reverse-engineering` has info on the machine, the v? files are EEPROM dumps.
+You can destroy your machine with this script! Use only if you know what you do!
 
-(`jura.py` is an earlier attempt in python on a raspberry Pi.)
+## Credits
+
+Thanks to Q42 for the idea and initial work
