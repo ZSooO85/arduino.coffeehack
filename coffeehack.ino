@@ -127,10 +127,10 @@ int getVal(String outputStr)
   return number;
 }
 
-// checks all stored values from RE:00 to RE:7F
+// checks all stored values from RE:00 to RE:FF
 void checkValues() {
   // go through each
-  for ( int i = 0; i <= 0x7F; i++ ) {
+  for ( int i = 0; i <= 0xFF; i++ ) {
     String outputString = "RE:";
     if(i <= 0xF){
       outputString += "0";
@@ -138,7 +138,7 @@ void checkValues() {
     outputString += String(i, HEX);
     outputString.toUpperCase();
     // get value and return to console
-    Serial.print(outputString); Serial.print(": "); Serial.println(getVal(outputString));
+    Serial.print(outputString); Serial.print("  "); Serial.println(getVal(outputString));
   }
 }
 
